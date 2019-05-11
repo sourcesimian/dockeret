@@ -1,0 +1,223 @@
+#!/bin/bash
+set -e
+LAUNCHER_LABEL="com.github.sourcesimian.dockeret.launcher"
+CACHE_DIR=$HOME/.cache/dockeret
+MAN_LABEL="com.github.sourcesimian.dockeret.man"
+
+export DKRT_SCRIPT="$(cd "$(dirname "$0")"; echo $PWD)/$(basename "$0")"
+export DKRT_REPOTAG="$1"
+
+if ! which docker >/dev/null; then
+    export PATH='/usr/local/bin:/usr/bin:$PATH'
+fi
+
+function show_help() {
+    cat <<EOF
+Dockeret - Containerised applet runner framework
+Usage: dkrt <command>
+
+Commands:
+    <image> [args ...]    Run Dockeret image followed by any args
+    images                List Dockeret images
+    cleanup               Cleaup dangling Dockeret artifacts
+    completion [bash]     Cat shell completion code. e.g. use in ~/.bashrc:
+                            eval "\$(dkrt completion bash)"
+    ps ...                Show running Dockeret containers
+    kill <name> ...       Kill running Dockeret containers
+    logs <name> ...       View Dockeret container logs
+    exec <name> [cmd] ... Exec into running Dockeret container
+EOF
+}
+
+function list_images() {
+    docker images "$@" \
+        --filter "label=${LAUNCHER_LABEL}" \
+        --filter "dangling=false"
+}
+
+function list_images_name() {
+    list_images "$@" --format '{{.Repository}}:{{.Tag}}'
+}
+
+function list_images_table() {
+    list_images "$@" --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}'
+}
+
+function list_ps() {
+    docker ps "$@" \
+        --filter "label=${LAUNCHER_LABEL}"
+}
+
+function list_ps_name() {
+    list_ps "$@" --format '{{.Names}}'
+}
+
+function list_ps_table() {
+    list_ps "$@" --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
+}
+
+
+function rm_dangling_images() {
+    for ID in $(docker images \
+        --filter "label=${LAUNCHER_LABEL}" \
+        --filter "dangling=true" \
+        --format '{{.ID}}' \
+    ); do
+        docker rmi -f ${ID}
+    done
+}
+
+function rm_exited_containers() {
+    for ID in $(docker ps \
+        --filter "label=${LAUNCHER_LABEL}" \
+        --filter "status=exited" \
+        --format '{{.ID}}' \
+    ); do
+        docker rm ${ID}
+    done
+}
+
+function cat_label() {
+    local LABEL=${1:?[LABEL]}
+    local REPOTAG=${2:?[REPOTAG]}
+
+    local FILE_NAME=$(docker inspect "${REPOTAG}" --format "{{index .Config.Labels \"${LABEL}\"}}" 2>/dev/null)
+
+    if [ -z "${FILE_NAME}" ]; then
+        echo "! \"${REPOTAG}\" has no \"${LABEL}\" label" >&2
+        exit 1
+    fi
+    docker run -i --rm "${REPOTAG}" cat "${FILE_NAME}"
+}
+
+function exec_label() {
+    local LABEL=${1:?[LABEL]}
+    local REPOTAG=${2:?[REPOTAG]}
+
+     local ID=$(docker inspect "${REPOTAG}" --format "{{.Id}}" 2>/dev/null | cut -d: -f2)
+
+     if [ -z "${ID}" ]; then
+         echo "! \"${REPOTAG}\" not found" >&2
+         exit 1
+     fi
+
+     local REPOTAG_X="$(echo ${REPOTAG} | tr '/' '~')"
+    LAUNCHER_FILE=${CACHE_DIR}/${LABEL}/${REPOTAG_X}.${ID}
+     if [ ! -e "${LAUNCHER_FILE}" ]; then
+        mkdir -p "${CACHE_DIR}/${LABEL}"
+        rm -rf ${CACHE_DIR}/${LABEL}/${REPOTAG_X}.*
+         cat_label "${LABEL}" "${REPOTAG}" >"${LAUNCHER_FILE}" || return 1
+        /bin/chmod +x "${LAUNCHER_FILE}"
+    fi
+    exec "${LAUNCHER_FILE}" "${@:3}"
+}
+
+function show_man() {
+    local REPOTAG=${1:?[REPOTAG]}
+    local MAN
+
+    if MAN=$(cat_label "${MAN_LABEL}" "${REPOTAG}"); then
+        if [ -t 1 ]; then
+            echo "$MAN" | man_pager "${REPOTAG}"
+        else
+            echo "$MAN"
+        fi
+    fi
+}
+
+man_pager() {
+    local TITLE=${1:?[TITLE]}
+    local PROMPT
+    PROMPT="\ Manual\ page\ \\$(echo "${TITLE}" | tr ':' '_')\ ?ltline\ %lt?L/%L.:"
+    PROMPT="${PROMPT}byte\ %bB?s/%s..?\ (END):?pB\ %pB\\%.. "
+    PROMPT="${PROMPT}(press h for help or q to quit)"
+    less --prompt "${PROMPT}"
+}
+
+function kill_ps() {
+    docker kill "$@"
+}
+
+function logs_ps() {
+    docker logs "$@"
+}
+
+function exec_ps() {
+    docker exec -it "$@"
+}
+
+function cat_complete_bash() {
+                cat << EOF
+__dkrt_complete()
+{
+    local cur="\${COMP_WORDS[COMP_CWORD]}"
+    local opts="\$($0 complete \${COMP_CWORD} \${COMP_WORDS[@]})"
+    COMPREPLY=(\$(compgen -W "\${opts}" -- \${cur} ))
+}
+complete -o default -F __dkrt_complete dkrt
+EOF
+# complete -o default -C "$0 complete" dkrt ## COMP_LINE, COMP_POINT
+}
+
+case "$1" in
+    "--help")
+        show_help
+        ;;
+    "")
+        list_images_table
+        ;;
+    "images")
+        list_images_table "${@:2}"
+        ;;
+    "ps")
+        list_ps_table "${@:2}"
+        ;;
+    "kill")
+        kill_ps "${@:2}"
+        ;;
+    "logs")
+        logs_ps "${@:2}"
+        ;;
+    "exec")
+        exec_ps "${@:2}"
+        ;;
+    "cleanup")
+        rm_dangling_images
+        rm_exited_containers
+        ;;
+    "completion")
+        case "$2" in
+            "bash")
+                cat_complete_bash
+                ;;
+            *)
+                echo "Usage: dkrt completion [bash]" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    "complete")
+        COMP_CWORD="${2:-0}"
+        COMP_WORDS=("${@:3}")
+        if [ "${COMP_CWORD}" = "1" ]; then
+            echo "--help images cleanup completion ps kill logs exec"
+            list_images_name
+        elif [ "${COMP_CWORD}" = "2" -a "${COMP_WORDS[1]}" = "kill" ]; then
+            list_ps_name
+        elif [ "${COMP_CWORD}" = "2" -a "${COMP_WORDS[1]}" = "logs" ]; then
+            list_ps_name
+        elif [ "${COMP_CWORD}" = "2" -a "${COMP_WORDS[1]}" = "exec" ]; then
+            list_ps_name
+        elif [ "${COMP_CWORD}" = "2" -a "${COMP_WORDS[1]}" = "completion" ]; then
+            echo "bash"
+        elif [ "${COMP_CWORD}" -ge "2" ] && grep -q "${COMP_WORDS[1]}" <(list_images_name); then
+            exec $0 ${COMP_WORDS[1]} complete $((COMP_CWORD-1)) ${COMP_WORDS[@]:2}
+        fi
+        ;;
+    "man")
+        show_man "${@:2}"
+        ;;
+    *)
+        exec_label "${LAUNCHER_LABEL}" "${@}"
+        ;;
+esac
