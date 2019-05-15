@@ -2,8 +2,10 @@
 
 ## Building
 ```
-cd ./apps/youtube-dl/
-make dockeret
+$ cd ./examples/youtube-dl/
+$ make dockeret
+...
+Successfully tagged sourcesimian/youtube-dl:latest
 ```
 
 ## Usage

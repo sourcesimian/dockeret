@@ -2,16 +2,16 @@
 Dockeret - Lightweight Launcher for Dockerised Applications
 
 Run containerised apps directly from the CLI as though they are natively installed on your system. No need to remember the `docker run` invocation.
-_
+
 
 ## Install
-```
-wget https://raw.githubusercontent.com/sourcesimian/dockeret/master/dkrt -O ~/bin/dkrt; chmod +x ~/bin/dkrt
+```sh
+$ wget https://raw.githubusercontent.com/sourcesimian/dockeret/master/dkrt -O ~/bin/dkrt; chmod +x ~/bin/dkrt
 ```
 
 ## Usage
 ```
-Dockeret - Containerised applet runner framework
+Dockeret - Dockerised Application Launcher
 Usage: dkrt <command>
 
 Commands:
@@ -26,10 +26,21 @@ Commands:
     exec <name> [cmd] ... Exec into running Dockeret container
 ```
 
+Typically:
+```sh
+$ dkrt images
+REPOSITORY                     TAG                 IMAGE ID            SIZE
+sourcesimian/youtube-dl        latest              6905b635003f        109MB
+...
+$ dkrt sourcesimian/youtube-dl --extract-audio --audio-format mp3 https://www.youtube.com/watch?v=dQw4w9WgXcQ
+[youtube] dQw4w9WgXcQ: Downloading webpage
+...
+```
+
 ## Dockeretizing an app
 Start with a Dockerized app, and then add a few more things:
- - A launcher script, and include it in your Docker image, e.g.: `/dockeret.sh`, e.g.:
-   ```
+ - A launcher script included in your Docker image, e.g.: `/dockeret.sh`, e.g.:
+   ```sh
     #!/bin/sh
     docker run -it --rm \
         ${DKRT_REPOTAG} \
@@ -41,10 +52,13 @@ Start with a Dockerized app, and then add a few more things:
 
 Congratulations! Your Dockerized app is now a Dockeret and will work in the Dockeret framework.
 
+
 ## Examples
 * [youtube-dl](./examples/youtube-dl)
+* [exiftool](./examples/exiftool)
 * [chirp](./examples/chirp)
 * [xeyes](./examples/xeyes)
+
 
 ## Dockeret Docker Labels
  - `com.github.sourcesimian.dockeret.launcher` reference the launcher script.

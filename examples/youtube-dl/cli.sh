@@ -1,3 +1,3 @@
 #!/bin/sh
 
-/usr/local/bin/youtube-dl "${@}"
+exec /usr/local/bin/youtube-dl "${@}"
