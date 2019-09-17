@@ -87,7 +87,7 @@ function cat_label() {
         echo "! \"${REPOTAG}\" has no \"${LABEL}\" label" >&2
         exit 1
     fi
-    docker run -i --rm "${REPOTAG}" cat "${FILE_NAME}"
+    docker run -i --rm --entrypoint /bin/cat "${REPOTAG}" "${FILE_NAME}"
 }
 
 function exec_label() {
@@ -106,7 +106,7 @@ function exec_label() {
      if [ ! -e "${LAUNCHER_FILE}" ]; then
         mkdir -p "${CACHE_DIR}/${LABEL}"
         rm -rf ${CACHE_DIR}/${LABEL}/${REPOTAG_X}.*
-         cat_label "${LABEL}" "${REPOTAG}" >"${LAUNCHER_FILE}" || return 1
+        cat_label "${LABEL}" "${REPOTAG}" >"${LAUNCHER_FILE}" || return 1
         /bin/chmod +x "${LAUNCHER_FILE}"
     fi
     exec "${LAUNCHER_FILE}" "${@:3}"

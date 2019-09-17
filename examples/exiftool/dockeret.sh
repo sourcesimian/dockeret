@@ -3,10 +3,10 @@
 [ "$1" == "complete" ] && exit 0
 
 user_id() {
-    case $OSTYPE in
-        linux*) echo "$(id -u):$(id -g)";;
-        darwin*) echo "$(id -u)";;
-        *) echo "OSTYPE:\"$OSTYPE\" not supported"; return 1;;
+    case $(uname) in
+        Linux*) echo "$(id -u):$(id -g)";;
+        Darwin*) echo "$(id -u)";;
+        *) echo "\"$(uname)\" not supported"; return 1;;
     esac
 }
 
@@ -21,6 +21,6 @@ exec docker run -i --rm \
     -v /tmp:/tmp \
     $MEDIA \
     $MNT \
-    --workdir $PWD \
-    ${DKRT_REPOTAG} \
+    --workdir "$PWD" \
+    "${DKRT_REPOTAG}" \
     /cli.sh "$@"

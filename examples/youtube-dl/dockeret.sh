@@ -1,12 +1,14 @@
 #!/bin/sh
 
-[ "$1" == "complete" ] && exit 0
+if [ "$1" = "complete" ]; then
+    exit 0
+fi
 
 user_id() {
-    case $OSTYPE in
-        linux*) echo "$(id -u):$(id -g)";;
-        darwin*) echo "$(id -u)";;
-        *) echo "OSTYPE:\"$OSTYPE\" not supported"; return 1;;
+    case "$(uname)" in
+        Linux*) echo "$(id -u):$(id -g)";;
+        Darwin*) echo "$(id -u)";;
+        *) echo "\"$(uname)\" not supported"; return 1;;
     esac
 }
 
